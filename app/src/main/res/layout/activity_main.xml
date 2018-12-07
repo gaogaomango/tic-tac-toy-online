@@ -10,6 +10,66 @@
     >
     <LinearLayout
         android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <EditText
+                android:id="@+id/inviteUserNameText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:hint="enter opponent name"
+                android:layout_weight="4"/>
+            <Button
+                android:id="@+id/inviteUserBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="INVITE"
+                android:layout_weight="1"/>
+            <Button
+                android:id="@+id/acceptInvitationBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ACCEPT"
+                android:layout_weight="1"/>
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <EditText
+                android:id="@+id/loginUserText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:hint="enter your login id"
+                android:layout_weight="4"/>
+            <Button
+                android:id="@+id/registerBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="REGISTER"
+                android:visibility="visible"
+                android:layout_weight="1"/>
+            <Button
+                android:id="@+id/loginBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="LOGIN"
+                android:visibility="visible"
+                android:layout_weight="1"/>
+            <Button
+                android:id="@+id/logoutBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="LOGOUT"
+                android:visibility="gone"
+                android:layout_weight="1"/>
+        </LinearLayout>
+    </LinearLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_weight="1"
         android:gravity="center">
