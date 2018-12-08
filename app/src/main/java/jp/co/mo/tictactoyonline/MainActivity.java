@@ -4,8 +4,6 @@ import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.DialogInterface;
 import android.graphics.Color;
-import android.net.Uri;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
@@ -30,12 +28,10 @@ import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
-import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -47,6 +43,8 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String DATA_KEY_UESRS = "users";
     private static final String DATA_KEY_REQUEST = "request";
+    private static final String DATA_KEY_PLAYING = "playing";
+    private static final String DATA_KEY_CELLID = "cellId";
 
     private static final int MAX_ROW_NUMBER = 3;
 
@@ -64,9 +62,11 @@ public class MainActivity extends AppCompatActivity {
     private static final int BTN_ID_8 = BTN_ID_7 + +1;
     private static final int BTN_ID_9 = BTN_ID_8 + +1;
 
-    private int activePlayer = NO_PLAYER; // 1- for first, 2 for second
+    private int mActivePlayer = NO_PLAYER; // 1- for first, 2 for second
     private List<Integer> mPlayer1; // hold player 1 data
     private List<Integer> mPlayer2; // hold player 2 data
+    private String mPlayerSession = "";
+
 
     private ProgressDialog mProgressDialog;
 
@@ -94,6 +94,8 @@ public class MainActivity extends AppCompatActivity {
     private DatabaseReference myRef = database.getReference();
     private String mUid;
     private String mUserEmail;
+
+    private String mFirstPlayUserName;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -146,7 +148,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initElement() {
-        activePlayer = PLAYER_1_ID; // 1- for first, 2 for second
+        mActivePlayer = PLAYER_1_ID; // 1- for first, 2 for second
         mPlayer1 = new ArrayList<>();
         mPlayer2 = new ArrayList<>();
     }
@@ -289,7 +291,8 @@ public class MainActivity extends AppCompatActivity {
                         @Override
                         public void onSuccess(Void aVoid) {
                             mInviteUserBtn.setEnabled(false);
-                            startGame(beforeAt(inviteUser) + ":" + beforeAt(mUserEmail) );
+                            startGame(beforeAt(inviteUser) + ":" + beforeAt(mUserEmail));
+                            mFirstPlayUserName = beforeAt(mUserEmail);
                         }
                     })
                     .addOnFailureListener(new OnFailureListener() {
@@ -305,7 +308,7 @@ public class MainActivity extends AppCompatActivity {
     public void onClickAcceptInvitationBtn(View view) {
         Toast.makeText(this, "Click Accept InvitationBtn", Toast.LENGTH_SHORT).show();
         final String inviteUser = mInviteUserNameText.getText().toString();
-        if(!TextUtils.isEmpty(inviteUser)) {
+        if (!TextUtils.isEmpty(inviteUser)) {
             myRef.child(DATA_KEY_UESRS)
                     .child(beforeAt(beforeAt(inviteUser)))
                     .child(DATA_KEY_REQUEST)
@@ -315,7 +318,8 @@ public class MainActivity extends AppCompatActivity {
                         @Override
                         public void onSuccess(Void aVoid) {
                             mInviteUserBtn.setEnabled(false);
-                            startGame(beforeAt(mUserEmail) + ":" + beforeAt(inviteUser) );
+                            startGame(beforeAt(mUserEmail) + ":" + beforeAt(inviteUser));
+                            mFirstPlayUserName = beforeAt(inviteUser);
                         }
                     })
                     .addOnFailureListener(new OnFailureListener() {
@@ -327,11 +331,53 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    String playerSession = "";
-
     private void startGame(String playGameId) {
-        playerSession = playGameId;
-        myRef.child("palying").child(playGameId).removeValue();
+        mPlayerSession = playGameId;
+        myRef.child(DATA_KEY_PLAYING)
+                .child(playGameId)
+                .removeValue();
+
+        myRef.child(DATA_KEY_PLAYING)
+                .child(playGameId)
+                .addValueEventListener(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
+                        try {
+                            mPlayer1.clear();
+                            mPlayer2.clear();
+                            mActivePlayer = PLAYER_2_ID;
+
+                            Map<String, Object> data = (HashMap<String, Object>) dataSnapshot.getValue();
+                            if (data != null) {
+
+                                String value;
+                                String firstPlayer = beforeAt(mUserEmail);
+
+                                for (String key : data.keySet()) {
+                                    if (!TextUtils.isEmpty(key)) {
+                                        value = (String) data.get(key);
+                                        if (!value.equals(firstPlayer)) {
+                                            mActivePlayer = mUserEmail.equals(mFirstPlayUserName) ? PLAYER_1_ID : PLAYER_2_ID;
+                                        } else {
+                                            mActivePlayer = mUserEmail.equals(mFirstPlayUserName) ? PLAYER_2_ID : PLAYER_1_ID;
+                                        }
+                                        firstPlayer = value;
+                                        String[] splicatId = key.split(":");
+                                        autoPlay(Integer.parseInt(splicatId[1]));
+                                    }
+
+                                }
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull DatabaseError databaseError) {
+
+                    }
+                });
     }
 
     @OnClick(R.id.registerBtn)
@@ -351,7 +397,8 @@ public class MainActivity extends AppCompatActivity {
 
     public void btnClick(View view) {
         // game is not started;
-        if(playerSession.length() <= 0) {
+        if (mPlayerSession.length() <= 0) {
+            Log.e(TAG, "btnClick mPlayerSession.length() <= 0");
             return;
         }
         Button selectedBtn = (Button) view;
@@ -385,38 +432,24 @@ public class MainActivity extends AppCompatActivity {
                 cellId = BTN_ID_9;
                 break;
         }
+        myRef.child(DATA_KEY_PLAYING).child(mPlayerSession).child(DATA_KEY_CELLID + ":" + cellId).setValue(beforeAt(mUserEmail));
 //        playGame(cellId, selectedBtn);
-        myRef.child("playing").child(playerSession).child("cellId" + cellId).setValue(beforeAt(mUserEmail));
     }
 
     private void playGame(int cellId, Button selectedBtn) {
         Log.d(TAG, "cell id: " + String.valueOf(cellId));
 
-        if (activePlayer == PLAYER_1_ID) {
+        if (mActivePlayer == PLAYER_1_ID) {
             selectedBtn.setText("x");
             selectedBtn.setBackgroundColor(Color.GREEN);
             mPlayer1.add(cellId);
-            activePlayer = PLAYER_2_ID;
-        } else if (activePlayer == PLAYER_2_ID) {
+        } else if (mActivePlayer == PLAYER_2_ID) {
             selectedBtn.setText("0");
             selectedBtn.setBackgroundColor(Color.BLUE);
             mPlayer2.add(cellId);
-            activePlayer = PLAYER_1_ID;
         }
         selectedBtn.setEnabled(false);
-        if (!isFinishedGame()) {
-            // auto playをさせるのはplayer2だけ
-            // auto play modeの場合はちょっとまってからプレイさせる
-            if (activePlayer == PLAYER_2_ID && mAutoPlayStatusToggle != null && mAutoPlayStatusToggle.isChecked()) {
-                ProgressDialog progressDialog = new ProgressDialog(this);
-                progressDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
-                progressDialog.setMessage("オートプレイを実行しています");
-                progressDialog.setCancelable(true);
-                progressDialog.show();
-
-                new AutoPlay(this, progressDialog).execute();
-            }
-        }
+        isFinishedGame();
     }
 
     private boolean isFinishedGame() {
@@ -488,25 +521,8 @@ public class MainActivity extends AppCompatActivity {
         return winnerId;
     }
 
-    private void autoPlay() {
-        // auto play modeの場合はちょっとまってからプレイさせる
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        List<Integer> emptyCells = new ArrayList<>(); // all unselected cell
-
-        // Find empty cells;
-        for (int cellId = 1; cellId < 10; cellId++) {
-            if (!(mPlayer1.contains(cellId) || mPlayer2.contains(cellId))) {
-                emptyCells.add(cellId);
-            }
-        }
-
-        Random r = new Random();
-        int randomIndex = r.nextInt(emptyCells.size() - 0) + 0; // if size =3, select (0,1,2)
-        int cellId = emptyCells.get(randomIndex);
+    private void autoPlay(int cellId) {
+        Log.e(TAG, "autoPlay cellId: " + String.valueOf(cellId));
         Button btnSelected = null;
         switch (cellId) {
             case BTN_ID_1:
@@ -542,38 +558,6 @@ public class MainActivity extends AppCompatActivity {
         }
 
         playGame(cellId, btnSelected);
-    }
-
-    private static class AutoPlay extends AsyncTask<Void, Void, String> {
-        private WeakReference<MainActivity> activityReference;
-        private ProgressDialog mProgressDialog;
-
-        public AutoPlay(MainActivity context, ProgressDialog progressDialog) {
-            this.activityReference = new WeakReference<>(context);
-            this.mProgressDialog = progressDialog;
-        }
-
-        @Override
-        protected String doInBackground(Void... voids) {
-            try {
-                // just wait for auto play
-                Thread.sleep(1000);
-            } catch (IllegalArgumentException e) {
-                e.printStackTrace();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            return null;
-        }
-
-        @Override
-        protected void onPostExecute(String result) {
-            activityReference.get().autoPlay();
-            if (mProgressDialog != null) {
-                mProgressDialog.dismiss();
-                mProgressDialog = null;
-            }
-        }
     }
 
 }
