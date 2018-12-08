@@ -24,12 +24,17 @@ import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 import butterknife.BindView;
@@ -39,6 +44,9 @@ import butterknife.OnClick;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = MainActivity.class.getSimpleName();
+
+    private static final String DATA_KEY_UESRS = "users";
+    private static final String DATA_KEY_REQUEST = "request";
 
     private static final int MAX_ROW_NUMBER = 3;
 
@@ -84,6 +92,8 @@ public class MainActivity extends AppCompatActivity {
     private FirebaseAuth.AuthStateListener mAuthStateListener;
     private FirebaseDatabase database = FirebaseDatabase.getInstance();
     private DatabaseReference myRef = database.getReference();
+    private String mUid;
+    private String mUserEmail;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -98,19 +108,21 @@ public class MainActivity extends AppCompatActivity {
             public void onAuthStateChanged(@NonNull FirebaseAuth firebaseAuth) {
                 FirebaseUser user = mAuth.getCurrentUser();
                 if (user != null) {
-                    final String email = user.getEmail();
-                    if (!TextUtils.isEmpty(email)) {
+                    mUserEmail = user.getEmail();
+                    mUid = user.getUid();
+                    if (!TextUtils.isEmpty(mUserEmail)) {
 
-                        myRef.child("users")
-                                .child(beforeAt(email))
-                                .child("request")
-                                .setValue(user.getUid())
+                        myRef.child(DATA_KEY_UESRS)
+                                .child(beforeAt(mUserEmail))
+                                .child(DATA_KEY_REQUEST)
+                                .setValue(mUid)
                                 .addOnSuccessListener(new OnSuccessListener<Void>() {
                                     @Override
                                     public void onSuccess(Void aVoid) {
                                         Log.d(TAG, "onAuthState Changed: sign_in");
-                                        mLoginUserText.setText(email);
+                                        mLoginUserText.setText(mUserEmail);
                                         setElementStatus(true);
+                                        checkInvitation();
                                     }
                                 })
                                 .addOnFailureListener(new OnFailureListener() {
@@ -210,14 +222,116 @@ public class MainActivity extends AppCompatActivity {
         mAuth.signOut();
     }
 
+    private void checkInvitation() {
+        myRef.child(DATA_KEY_UESRS)
+                .child(beforeAt(mUserEmail))
+                .child(DATA_KEY_REQUEST)
+                .addValueEventListener(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
+                        try {
+                            Map<String, Object> data = (HashMap<String, Object>) dataSnapshot.getValue();
+                            if (data != null) {
+                                String value;
+                                for (String key : data.keySet()) {
+                                    if (!TextUtils.isEmpty(key)) {
+                                        value = (String) data.get(key);
+                                        mInviteUserNameText.setText(value);
+                                        myRef.child(DATA_KEY_UESRS)
+                                                .child(beforeAt(mUserEmail))
+                                                .child(DATA_KEY_REQUEST)
+                                                .setValue(mUid)
+                                                .addOnSuccessListener(new OnSuccessListener<Void>() {
+                                                    @Override
+                                                    public void onSuccess(Void aVoid) {
+                                                        invitationColor();
+                                                    }
+                                                })
+                                                .addOnFailureListener(new OnFailureListener() {
+                                                    @Override
+                                                    public void onFailure(@NonNull Exception e) {
+
+                                                    }
+                                                });
+                                    }
+
+                                }
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull DatabaseError databaseError) {
+
+                    }
+                });
+    }
+
+    private void invitationColor() {
+        mInviteUserNameText.setBackgroundColor(Color.RED);
+    }
+
     @OnClick(R.id.inviteUserBtn)
     public void onClickInviteUserBtn(View view) {
         Toast.makeText(this, "Click Invite UserBtn", Toast.LENGTH_SHORT).show();
+        final String inviteUser = mInviteUserNameText.getText().toString();
+
+        if (!TextUtils.isEmpty(inviteUser)) {
+            mInviteUserBtn.setEnabled(false);
+            myRef.child(DATA_KEY_UESRS)
+                    .child(beforeAt(beforeAt(inviteUser)))
+                    .child(DATA_KEY_REQUEST)
+                    .push()
+                    .setValue(mUserEmail)
+                    .addOnSuccessListener(new OnSuccessListener<Void>() {
+                        @Override
+                        public void onSuccess(Void aVoid) {
+                            mInviteUserBtn.setEnabled(false);
+                            startGame(beforeAt(inviteUser) + ":" + beforeAt(mUserEmail) );
+                        }
+                    })
+                    .addOnFailureListener(new OnFailureListener() {
+                        @Override
+                        public void onFailure(@NonNull Exception e) {
+                            mInviteUserBtn.setEnabled(true);
+                        }
+                    });
+        }
     }
 
     @OnClick(R.id.acceptInvitationBtn)
     public void onClickAcceptInvitationBtn(View view) {
         Toast.makeText(this, "Click Accept InvitationBtn", Toast.LENGTH_SHORT).show();
+        final String inviteUser = mInviteUserNameText.getText().toString();
+        if(!TextUtils.isEmpty(inviteUser)) {
+            myRef.child(DATA_KEY_UESRS)
+                    .child(beforeAt(beforeAt(inviteUser)))
+                    .child(DATA_KEY_REQUEST)
+                    .push()
+                    .setValue(mUserEmail)
+                    .addOnSuccessListener(new OnSuccessListener<Void>() {
+                        @Override
+                        public void onSuccess(Void aVoid) {
+                            mInviteUserBtn.setEnabled(false);
+                            startGame(beforeAt(mUserEmail) + ":" + beforeAt(inviteUser) );
+                        }
+                    })
+                    .addOnFailureListener(new OnFailureListener() {
+                        @Override
+                        public void onFailure(@NonNull Exception e) {
+                            mInviteUserBtn.setEnabled(true);
+                        }
+                    });
+        }
+    }
+
+    String playerSession = "";
+
+    private void startGame(String playGameId) {
+        playerSession = playGameId;
+        myRef.child("palying").child(playGameId).removeValue();
     }
 
     @OnClick(R.id.registerBtn)
@@ -236,6 +350,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void btnClick(View view) {
+        // game is not started;
+        if(playerSession.length() <= 0) {
+            return;
+        }
         Button selectedBtn = (Button) view;
         int cellId = -1;
         switch (selectedBtn.getId()) {
@@ -267,7 +385,8 @@ public class MainActivity extends AppCompatActivity {
                 cellId = BTN_ID_9;
                 break;
         }
-        playGame(cellId, selectedBtn);
+//        playGame(cellId, selectedBtn);
+        myRef.child("playing").child(playerSession).child("cellId" + cellId).setValue(beforeAt(mUserEmail));
     }
 
     private void playGame(int cellId, Button selectedBtn) {
